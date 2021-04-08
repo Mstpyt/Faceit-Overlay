@@ -1,11 +1,29 @@
+import cProfile
 import datetime
+import io
 import logging
+import pstats
+
 import requests
 
-from faceit.faceit_data import FaceitData
-
 from config import FACEIT_API, FACEIT_API_V1
+from faceit.faceit_data import FaceitData
 from functions import config_functions
+
+
+def profile(fnc):
+    def inner(*args, **kwargs):
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+    return inner
 
 
 def get_api_data():
@@ -66,7 +84,7 @@ def get_data_from_v1_api():
         r = requests.get(API, stream=True)
         data_v1 = r.json()
         return data_v1
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         logging.info("Could not get data from API_V1 with user {}".format(user))
 
 
