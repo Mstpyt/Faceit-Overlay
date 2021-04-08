@@ -159,7 +159,7 @@ def save_data():
                         (COL_List[1][1], COL_List[1][2], COL_List[1][3], 255))
     iRv = config_functions.check_faceit_name_api(acName)
     if iRv < 0:
-        set_error("Wrong FACEIT Name")
+        set_error("Error: Wrong FACEIT Name")
     iChanges = 0
 
 
@@ -222,6 +222,7 @@ def set_colors(COL_List: list):
     Set the Theme Colors new
     """
     core.set_theme_item(mvGuiCol_Button, COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3])
+    core.set_theme_item(mvGuiCol_ButtonHovered,COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3])
     core.set_theme_item(mvGuiCol_Text, COL_List[1][0], COL_List[1][1], COL_List[1][2], COL_List[1][3])
     core.set_theme_item(mvGuiCol_ButtonActive, COL_List[2][0], COL_List[2][1], COL_List[2][2], COL_List[2][3])
     core.set_theme_item(mvGuiCol_WindowBg, COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3])
@@ -233,6 +234,15 @@ def set_colors(COL_List: list):
     core.set_item_style_var("##Config", mvGuiStyleVar_WindowRounding, value=[0])
     core.set_item_color("##Config", mvGuiCol_Border,
                         color=(COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3]))
+    core.set_item_color("Start", mvGuiCol_Button,
+                        color=(COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3]))
+    core.set_item_color("Start", mvGuiCol_ButtonActive,
+                        color=(COL_List[2][0], COL_List[2][1], COL_List[2][2] - 10))
+    core.set_value("Header#Color", [COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3]])
+    core.set_value("Text#Color", [COL_List[1][0], COL_List[1][1], COL_List[1][2], COL_List[1][3]])
+    core.set_value("ButtonActive#Color", [COL_List[2][0], COL_List[2][1], COL_List[2][2], COL_List[2][3]])
+    core.set_value("BG#Color", [COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3]])
+    core.set_value("Outline#Color", [COL_List[4][0], COL_List[4][1], COL_List[4][2], COL_List[4][3]])
 
 
 def test_colors():
@@ -248,8 +258,7 @@ def reset_colors():
     """
     Get the COL_List saved into the database and set them
     """
-    colors = sqlite3db.TExecSqlReadMany(DBNAME, """
-                                SELECT Red, Green, Blue, Trans FROM CFG_COLORS""")
+    colors = config_functions.get_color()
     set_colors(colors)
 
 
@@ -302,27 +311,25 @@ def changes_detected():
     global iChanges
     core.set_item_color("Apply Configuration", mvGuiCol_Text, (255, 0, 0, 255))
     iChanges = 1
-    acScore = core.get_value("Score##match")
-    acResult = core.get_value("Result (W/L)##match")
-    acMap = core.get_value("Map##match")
-    if acScore is False and acResult is True and acMap is True:
-        core.set_value("Result (W/L)##match", False)
-        core.set_value("Map##match", False)
-    if acScore is True and acResult is False and acMap is True:
-        core.set_value("Score##match", False)
-        core.set_value("Map##match", False)
-    if acScore is True and acResult is True and acMap is False:
-        core.set_value("Result (W/L)##match", False)
-        core.set_value("Score##match", False)
-
-    if acScore is True and acResult is False and acMap is False:
+    set_false = 0
+    cnt = 0
+    acList = (core.get_value("Score##match"),
+              core.get_value("Result (W/L)##match"),
+              core.get_value("Map##match"))
+    for x in acList:
+        if x is False:
+            cnt = cnt+1
+    if cnt != 2:
+        for x in acList:
+            if x is False:
+                core.set_value("Result (W/L)##match", False)
+                core.set_value("Map##match", False)
+                core.set_value("Score##match", False)
+                set_false = 1
+                break
+    if set_false == 0:
         core.set_value("Result (W/L)##match", True)
         core.set_value("Map##match", True)
-    if acScore is False and acResult is True and acMap is False:
-        core.set_value("Score##match", True)
-        core.set_value("Map##match", True)
-    if acScore is False and acResult is True and acMap is True:
-        core.set_value("Result (W/L)##match", True)
         core.set_value("Score##match", True)
 
 
@@ -371,46 +378,58 @@ def enable_all(sender):
 
 def animation_config_color():
     i = 0
+    logging.info("start animation config_color")
     conf = core.get_item_configuration("##Config")
+    help = core.get_item_configuration("##Help")
+    if help["show"] is True:
+        core.configure_item("##Help", show=False)
+        core.configure_item("##Config_Colors", show=True)
+        return
     if conf["width"] < 350:
         core.configure_item("##Config_Colors", show=True)
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.01
+            i += 0.02
             core.configure_item("##Config", x_pos=0, width=380 + x_pos)
-            sleep(0.005)
-
+            sleep(0.001)
     else:
         core.configure_item("##Config_Colors", show=False)
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.01
+            i += 0.02
             core.configure_item("##Config", x_pos=0, width=60 - x_pos)
-            sleep(0.002)
+            sleep(0.001)
+    logging.info("end animation config_color")
 
 
 def animation_config_help():
+    logging.info("start animation config_help")
     i = 0
-    conf = core.get_item_configuration("##Config")
-    if conf["width"] < 350:
+    help = core.get_item_configuration("##Config")
+    conf = core.get_item_configuration("##Config_Colors")
+    if conf["show"] is True:
+        core.configure_item("##Help", show=True)
+        core.configure_item("##Config_Colors", show=False)
+        return
+    if help["width"] < 350:
         core.configure_item("##Config_Colors", show=False)
         core.configure_item("##Help", show=True)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.01
+            i += 0.02
             core.configure_item("##Config", x_pos=0, width=380 + x_pos)
-            sleep(0.005)
-
+            sleep(0.001)
     else:
         core.configure_item("##Config_Colors", show=False)
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.01
+            i += 0.02
             core.configure_item("##Config", x_pos=0, width=60 - x_pos)
-            sleep(0.002)
+            sleep(0.001)
+    logging.info("end animation config_help")
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -539,6 +558,8 @@ def start_build_dpg():
         core.set_theme_item(mvGuiCol_Border, COLOR_List[4][0], COLOR_List[4][1], COLOR_List[4][2], COLOR_List[4][3])
         core.set_style_frame_border_size(1.00)
         core.set_theme_item(mvGuiCol_Button, COLOR_List[0][0], COLOR_List[0][1], COLOR_List[0][2], COLOR_List[0][3])
+        core.set_theme_item(mvGuiCol_ButtonHovered,
+                            COLOR_List[0][0], COLOR_List[0][1], COLOR_List[0][2], COLOR_List[0][3])
         core.set_theme_item(mvGuiCol_ButtonActive, COLOR_List[2][0], COLOR_List[2][1], COLOR_List[2][2],
                             COLOR_List[2][3])
         core.set_theme_item(mvGuiCol_BorderShadow, COLOR_List[0][0], COLOR_List[0][1], COLOR_List[0][2] - 50,
@@ -673,7 +694,8 @@ def start_build_dpg():
         core.set_item_color("##Config", mvGuiCol_Border,
                             color=(COLOR_List[4][0], COLOR_List[4][1], COLOR_List[4][2], COLOR_List[4][3]) )
         core.add_image_button("##ConfigPlus", value="resources/cfg_wheel.png",
-                              callback=animation_config_color, frame_padding=1)
+                              callback=animation_config_color, frame_padding=1,
+                              tip="Change Colors")
         core.add_same_line(xoffset=50)
         with simple.group("##Config_Colors", show=False):
             COLOR_List = config_functions.get_color()
@@ -712,7 +734,8 @@ def start_build_dpg():
             core.add_button("Save Size##1", callback=save_scale)
         core.add_spacing(count=5)
         core.add_image_button("##ConfigQuestion", value="resources/q.png",
-                              callback=animation_config_help, frame_padding=1)
+                              callback=animation_config_help, frame_padding=1,
+                              tip="Help")
         core.add_same_line(xoffset=50)
         with simple.group("##Help", show=False):
             core.add_input_text("##HelpIntroText", multiline=True, readonly=True, height=110, width=340,
