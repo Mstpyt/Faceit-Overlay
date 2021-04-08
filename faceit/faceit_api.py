@@ -25,6 +25,10 @@ def profile(fnc):
 
 
 def get_api_data():
+    """
+    Get data from the API to fill the Overlay
+    :returns user, user_state, matches
+    """
     logging.info("start get_api_data")
     name = config_functions.get_faceit_name_from_db()
     faceit_data = FaceitData(FACEIT_API)
@@ -37,6 +41,10 @@ def get_api_data():
 
 
 def get_api_data_user():
+    """
+    Get user data from API
+    :returns user
+    """
     logging.info("get_api_data_user")
     name = config_functions.get_faceit_name_from_db()
     faceit_data = FaceitData(FACEIT_API)
@@ -44,7 +52,29 @@ def get_api_data_user():
     user = faceit_data.player_details(name)
     return user
 
+
+def get_api_user(name):
+    """
+    Check if the user is registered on faceit
+    :returns 1 Ok
+    :returns None nOk
+    """
+    try:
+        logging.info("get_api_data_user")
+        faceit_data = FaceitData(FACEIT_API)
+        user = faceit_data.player_details(name)
+        if user:
+            return 1
+    except ValueError:
+        logging.error("Faceit Name is not correct !")
+        return None
+
+
 def get_data_from_v1_api():
+    """
+    Get data from v1 API
+    :returns data_v1
+    """
     logging.info("start get_data_from_v1_api")
     user = get_api_data_user()
     API = FACEIT_API_V1.format(user["player_id"])
@@ -56,8 +86,10 @@ def get_data_from_v1_api():
         logging.info("Could not get data from API_V1 with user {}".format(user))
 
 
-#@profile
 def get_faceit_data_from_api():
+    """
+    Get data and return the values for the Overlay
+    """
     logging.info("start get_faceit_data_from_api")
     acResult = ""
     acKd = ""
@@ -105,6 +137,9 @@ def get_faceit_data_from_api():
 
 
 def get_faceit_elo_data_from_api():
+    """
+    Get Elo from API
+    """
     logging.info("start get_faceit_elo_data_from_api")
     user = get_api_data_user()
 
@@ -113,6 +148,9 @@ def get_faceit_elo_data_from_api():
 
 
 def get_elo_today_from_v1_api(data_v1):
+    """
+    Calculate the +- Elo in a Day
+    """
     logging.info("start get_elo_today_from_v1_api")
     EloDiff = 0
     EloStart = 0
