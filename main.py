@@ -11,6 +11,7 @@ from config import DBNAME
 from database import db_create, sqlite3db
 from functions import config_functions, functions
 import logging
+from faceit import faceit_api
 """
 Global Values
 iChanges : set if a change was made in a configuration
@@ -157,8 +158,9 @@ def save_data():
     COL_List = config_functions.get_color()
     core.set_item_color("Apply Configuration", mvGuiCol_Text,
                         (COL_List[1][1], COL_List[1][2], COL_List[1][3], 255))
-    iRv = config_functions.check_faceit_name_api(acName)
-    if iRv < 0:
+    iRv = faceit_api.get_api_user(acName)
+    #iRv = config_functions.check_faceit_name_api(acName)
+    if iRv is None:
         set_error("Error: Wrong FACEIT Name")
     iChanges = 0
 
@@ -390,7 +392,7 @@ def animation_config_color():
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.02
+            i += 0.03
             core.configure_item("##Config", x_pos=0, width=380 + x_pos)
             sleep(0.001)
     else:
@@ -398,7 +400,7 @@ def animation_config_color():
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.02
+            i += 0.03
             core.configure_item("##Config", x_pos=0, width=60 - x_pos)
             sleep(0.001)
     logging.info("end animation config_color")
@@ -418,7 +420,7 @@ def animation_config_help():
         core.configure_item("##Help", show=True)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.02
+            i += 0.03
             core.configure_item("##Config", x_pos=0, width=380 + x_pos)
             sleep(0.001)
     else:
@@ -426,7 +428,7 @@ def animation_config_help():
         core.configure_item("##Help", show=False)
         while i <= 1:
             x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.02
+            i += 0.03
             core.configure_item("##Config", x_pos=0, width=60 - x_pos)
             sleep(0.001)
     logging.info("end animation config_help")
