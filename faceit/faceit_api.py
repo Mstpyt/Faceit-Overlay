@@ -6,22 +6,6 @@ from faceit.faceit_data import FaceitData
 
 from config import FACEIT_API, FACEIT_API_V1
 from functions import config_functions
-import cProfile, pstats, io
-
-
-def profile(fnc):
-    def inner(*args, **kwargs):
-        pr = cProfile.Profile()
-        pr.enable()
-        retval = fnc(*args, **kwargs)
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
-        return retval
-    return inner
 
 
 def get_api_data():
