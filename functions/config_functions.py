@@ -1,7 +1,5 @@
 import glob
-
-import requests
-from config import DBNAME, URL
+from config import DBNAME
 from database import sqlite3db
 from functions import functions
 from datetime import date
@@ -58,24 +56,6 @@ def check_if_elo_entry_exists():
         return 1
     else:
         return 0
-
-
-def check_faceit_name_api(name):
-    """
-    Check if the entered FACEIT name is correct
-    return : 1 correct
-            -1 not correct
-    """
-    logging.info("start check_faceit_name_api")
-    try:
-        FACEIT = str(URL) + str(name)
-        r = requests.get(FACEIT)
-        data = r.json()
-        if data:
-            return 1
-    except ValueError:
-        logging.error("Faceit Name is not correct !")
-        return -1
 
 
 def check_if_color_config_entry_exists():
@@ -153,6 +133,9 @@ def get_color():
 
 
 def get_faceit_name_from_db():
+    """
+    Get faceit name from database and return the name
+    """
     logging.info("start get_faceit_name_from_db")
     name = sqlite3db.TExecSqlReadMany(DBNAME, """
                         SELECT name FROM CFG_FACEIT_NAME
