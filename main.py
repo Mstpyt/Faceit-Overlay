@@ -28,10 +28,12 @@ def startup():
     Get all data from the Database. If no Database entry exists, set everything on default.
     """
     logging.info("Get startup values")
+    acEloGoal = config_functions.get_elo_goal_from_db()
     iRv = config_functions.check_if_dbfile_exists()
     FACEIT_List = []
     MATCH_List = []
     nameFACEIT = ""
+
     if iRv > 0:
         iRv = config_functions.check_if_config_entry_exists()
         if iRv > 0:
@@ -54,19 +56,19 @@ def startup():
                     MATCH_List.append(False)
                 else:
                     MATCH_List.append(True)
-            return FACEIT_List, MATCH_List, nameFACEIT
+            return FACEIT_List, MATCH_List, nameFACEIT, acEloGoal
         else:
             for x in range(0, 6):
                 FACEIT_List.append(True)
             for x in range(0, 7):
                 MATCH_List.append(True)
-            return FACEIT_List, MATCH_List, nameFACEIT
+            return FACEIT_List, MATCH_List, nameFACEIT, acEloGoal
     else:
         for x in range(0, 6):
             FACEIT_List.append(True)
         for x in range(0, 7):
             MATCH_List.append(True)
-        return FACEIT_List, MATCH_List, nameFACEIT
+        return FACEIT_List, MATCH_List, nameFACEIT, acEloGoal
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -109,6 +111,7 @@ def save_data():
     iRv = config_functions.check_if_config_entry_exists()
     FACEIT_List, MATCH_List, acName = get_values_to_safe_faceit()
     name = config_functions.get_faceit_name_from_db()
+    acEloGoal = core.get_value("##EloGoal")
     if not acName:
         set_error("Faceit Name must be set!")
         return
@@ -154,12 +157,27 @@ def save_data():
             sqlite3db.TExecSql(DBNAME, """
                                         INSERT INTO CFG_FACEIT_NAME
                                         VALUES (? )""", acName)
+    if acEloGoal:
+        iRv = sqlite3db.TExecSqlReadCount(DBNAME,"""
+                            SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO                    
+                                """)
+        if iRv > 0:
+            sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_FACEIT_TARGET_ELO
+                            SET TARGET = ?
+            """, int(acEloGoal))
+        else:
+            sqlite3db.TExecSql(DBNAME, """
+                            INSERT INTO CFG_FACEIT_TARGET_ELO
+                            VALUES (? )""", acEloGoal)
+    else:
+        sqlite3db.TExecSql(DBNAME, """
+                            DELETE FROM CFG_FACEIT_TARGET_ELO""")
     delete_error()
     COL_List = config_functions.get_color()
     core.set_item_color("Apply Configuration", mvGuiCol_Text,
                         (COL_List[1][1], COL_List[1][2], COL_List[1][3], 255))
     iRv = faceit_api.get_api_user(acName)
-    #iRv = config_functions.check_faceit_name_api(acName)
     if iRv is None:
         set_error("Error: Wrong FACEIT Name")
     iChanges = 0
@@ -454,14 +472,12 @@ def open_overlay():
         if iChanges == 1:
             set_warning("Configuration not saved, press Apply Configuration")
         else:
-            print('layout')
             height = config_functions.check_for_layout()
             hwnd = win32gui.GetForegroundWindow()
             win32gui.MoveWindow(hwnd, 0, 0, 208, height[0] + 39, True)
             simple.hide_item("##Overlay")
             simple.hide_item("##Config")
             win32gui.SetWindowText(hwnd, f"{faceit_name} Elo")
-            print('open')
             eloOverlay.show_main()
     else:
         set_error("No FACEIT Name configured")
@@ -540,9 +556,10 @@ def start_build_dpg():
         """
         Set window configurations
         """
+
         simple.set_window_pos("FACEIT Elo Overlay", 0, 0)
         core.set_main_window_title("FACEIT Elo Overlay")
-        core.set_main_window_size(492, 730)
+        core.set_main_window_size(492, 780)
         core.set_style_frame_rounding(6.00)
         core.add_additional_font("resources/OpenSans-Bold.ttf", size=14.5)
 
@@ -569,31 +586,36 @@ def start_build_dpg():
 
     with simple.window('##Overlay', no_collapse=True, no_resize=True, no_move=True, no_close=True, x_pos=30, y_pos=0,
                        width=445,
-                       height=691, no_title_bar=True):
+                       height=740, no_title_bar=True):
         """
         Set a Header 
         """
-        bool_list_faceit, bool_list_match, name = startup()
-        core.add_button("Elo Overlay Menu")
-        core.set_item_style_var("Elo Overlay Menu", mvGuiStyleVar_FramePadding, [5 * 27, 5 * 3])
+        bool_list_faceit, bool_list_match, name, acEloGoal = startup()
+        core.add_button("FACEIT Overlay Menu")
+        core.set_item_style_var("FACEIT Overlay Menu", mvGuiStyleVar_FramePadding, [5 * 27, 5 * 3])
         core.add_spacing(count=5)
         """
         Build up the FACEIT Stats configuration 
         """
 
         with simple.group("##GroupStats"):
-            core.add_button("Configure FACEIT Stats##STATS")
-            core.set_item_style_var("Configure FACEIT Stats##STATS", mvGuiStyleVar_FramePadding, [5 * 20, 5 * 3])
+            core.add_button("Default Configurations##STATS")
+            core.set_item_style_var("Default Configurations##STATS", mvGuiStyleVar_FramePadding, [5 * 20, 5 * 3])
             core.add_spacing(count=5)
-
+            core.add_text("##TextFaceitName", default_value="FACEIT Name:")
             core.add_input_text("##FaceitName", hint="FACEIT Name Case sensitive", default_value=name,
                                 callback=changes_detected)
+            core.add_spacing(count=2)
+            core.add_text("##TextEloGoal", default_value="FACEIT Elo goal:")
+            core.add_input_text("##EloGoal", hint="Set your Elo goal, empty = disabled", default_value=str(acEloGoal),
+                                callback=changes_detected)
             core.add_spacing(count=5)
+
             """
             Faceit Stats header 
             """
-            core.add_button("Faceit Stats")
-            core.set_item_style_var("Faceit Stats", mvGuiStyleVar_FramePadding, [5 * 26, 5 * 3])
+            core.add_button("FACEIT Stats")
+            core.set_item_style_var("FACEIT Stats", mvGuiStyleVar_FramePadding, [5 * 26, 5 * 3])
             core.add_spacing(count=2)
             """
             Checkbox group 
@@ -687,7 +709,7 @@ def start_build_dpg():
         core.set_item_style_var("Start", mvGuiStyleVar_FramePadding, [5 * 29.5, 5 * 3])
 
     with simple.window('##Config', no_collapse=True, no_resize=True, no_move=True, no_close=True, x_pos=0, y_pos=1,
-                       width=20, height=688, no_title_bar=True):
+                       width=20, height=740, no_title_bar=True):
         core.set_item_color("##Config", mvGuiCol_Text,
                             color=(COLOR_List[1][0], COLOR_List[1][1], COLOR_List[1][2], COLOR_List[1][3]))
         core.set_item_color("##Config", mvGuiCol_WindowBg,
