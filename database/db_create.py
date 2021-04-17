@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from database import sqlite3db
 
 """ -------------------------------------------------------------------------------------------------------------------
                                             CREATE DATABASE
@@ -58,6 +59,11 @@ def create_database(database_name: str):
             Elo           INT,
             ELODIFF       INT,
             DATE          TEXT
+            )
+        """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS CFG_FACEIT_TARGET_ELO(
+            TARGET          TEXT
             )
         """)
 
