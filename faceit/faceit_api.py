@@ -6,8 +6,6 @@ from faceit.faceit_data import FaceitData
 from functions import config_functions
 
 
-
-
 def get_api_data():
     """
     Get data from the API to fill the Overlay
@@ -146,8 +144,9 @@ def get_elo_today_from_v1_api(data_v1):
         datetime_time = datetime.datetime.fromtimestamp(int(dateint))
         datetimestr = str(datetime_time)
         if datetimestr[0:10] != str(today) and found_data == 0:
-            EloStart = x["elo"]
-            found_data = 1
+            if "elo" in x:
+                EloStart = x["elo"]
+                found_data = 1
 
     for x in data_v1:
         date: str = str(x["date"])
@@ -156,10 +155,9 @@ def get_elo_today_from_v1_api(data_v1):
         datetimestr = str(datetime_time)
         if datetimestr[0:10] == str(today):
             try:
-                if x:
-                    if int(x["elo"]):
-                        EloDiff = int(EloStart) - int(x["elo"])
-                break
+                if "elo" in x:
+                    EloDiff = int(EloStart) - int(x["elo"])
+                    break
             except ValueError:
                 logging.error("could not get data from v1 [elo] retry")
 
