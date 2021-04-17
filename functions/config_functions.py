@@ -93,7 +93,6 @@ def check_if_scale_config_entry_exists():
 def get_scale():
     """
     Get the scale from the DB.
-    If no color entry exists return the default values
     return : Float from DB
              Default Float 1.00
     """
@@ -145,6 +144,21 @@ def get_faceit_name_from_db():
     return name
 
 
+def get_elo_goal_from_db():
+    """
+    Get the Elo Goal from database and return the Value
+    """
+    logging.info("start get_elo_goal_from_db")
+    acEloGoal = sqlite3db.TExecSqlReadMany(DBNAME, """
+                        SELECT TARGET FROM CFG_FACEIT_TARGET_ELO
+                        """)
+    if acEloGoal:
+        acEloGoal = functions.listToStringWithoutBracketsAndAT(acEloGoal[0])
+    else:
+        return ""
+    return acEloGoal
+
+
 def check_for_layout():
     """
     Check which Checkboxes are active and set the height of the overlay
@@ -161,13 +175,20 @@ def check_for_layout():
                                             SELECT * FROM CFG_STATS_MATCH
                                              """
                                               )
+    acEloGoal = sqlite3db.TExecSqlReadCount(DBNAME,"""
+                                            SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO""")
+
     for i in list_faceit[0]:
         if i == str(1):
             iCountFaceit = iCountFaceit + 1
+    if acEloGoal:
+        iCountFaceit = iCountFaceit + 1
     for i in list_matches[0]:
         if i == str(1):
             iCountMatch = iCountMatch + 1
     iCount = iCountFaceit + iCountMatch
+    if iCount == 14:
+        heigh = 300
     if iCount == 13:
         heigh = 285
     if iCount == 12:
