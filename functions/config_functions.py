@@ -90,6 +90,72 @@ def check_if_scale_config_entry_exists():
         return 0
 
 
+def check_if_refresh_config_entry_exists():
+    """
+    Check if there is any entry in CFG_REFRESH
+    return : 1 if exists
+             0 if not exists
+    """
+    logging.info("start check_if_refresh_config_entry_exists")
+    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
+            SELECT COUNT(*) FROM CFG_REFRESH
+            """)
+    if iRv > 0:
+        return 1
+    else:
+        return 0
+
+
+def check_if_refresh_symbol_config_entry_exists():
+    """
+    Check if there is any entry in CFG_REFRESH
+    return : 1 if exists
+             0 if not exists
+    """
+    logging.info("start check_if_refresh_symbol_config_entry_exists")
+    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
+            SELECT COUNT(*) FROM CFG_REFRESH_SIGN
+            """)
+    if iRv > 0:
+        return 1
+    else:
+        return 0
+
+
+def get_refresh_sign():
+    """
+    Get the refresh sign from the DB.
+    return : int from DB
+    """
+    logging.info("start get_refresh_sign")
+    iRv = check_if_refresh_config_entry_exists()
+    if iRv > 0:
+        refresh = sqlite3db.TExecSqlReadMany(DBNAME, """
+                                SELECT * FROM CFG_REFRESH_SIGN
+                                """)
+        return functions.listToStringWithoutBracketsAndAT(refresh)
+    else:
+        refresh = True
+    return refresh
+
+
+def get_refresh():
+    """
+    Get the refresh time from the DB.
+    return : int from DB
+    """
+    logging.info("start get_refresh")
+    iRv = check_if_refresh_config_entry_exists()
+    if iRv > 0:
+        refresh = sqlite3db.TExecSqlReadMany(DBNAME, """
+                                SELECT * FROM CFG_REFRESH
+                                """)
+        return functions.ConvertToInt(refresh[0])
+    else:
+        refresh = 60
+    return refresh
+
+
 def get_scale():
     """
     Get the scale from the DB.
@@ -175,7 +241,7 @@ def check_for_layout():
                                             SELECT * FROM CFG_STATS_MATCH
                                              """
                                               )
-    acEloGoal = sqlite3db.TExecSqlReadCount(DBNAME,"""
+    acEloGoal = sqlite3db.TExecSqlReadCount(DBNAME, """
                                             SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO""")
 
     for i in list_faceit[0]:
