@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from database import sqlite3db
+
 
 """ -------------------------------------------------------------------------------------------------------------------
                                             CREATE DATABASE
