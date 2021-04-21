@@ -49,9 +49,12 @@ class Worker:
                                     """)
                 if name:
                     if start_threading == 1:
+                        refresh_rate = config_functions.get_refresh()
+                        refreshSymbol = config_functions.get_refresh_sign()
                         logging.info("Get stats and refresh them")
-                        core.configure_item("##reload_same_line", show=True)
-                        core.configure_item("##reload_image", show=True)
+                        if refreshSymbol in "True":
+                            core.configure_item("##reload_same_line", show=True)
+                            core.configure_item("##reload_image", show=True)
                         self.iElo, self.acEloToday, self.iRank, \
                         self.acResult, self.acScore, self.acKd, \
                         self.acMap, self.iStreak, self.iMatches, \
@@ -71,8 +74,8 @@ class Worker:
                         core.set_value("death##", f"{self.iDeath}")
                         core.configure_item("##reload_same_line", show=False)
                         core.configure_item("##reload_image", show=False)
-                        sleep(60)
-            except:
+                        sleep(refresh_rate)
+            except threading.ThreadError:
                 self.run()
 
     def run2(self):
@@ -85,7 +88,7 @@ class Worker:
                         nI = 0.00
                         for i in range(10):
                             nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI*100)}%")
+                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
                             core.set_value("##ProgressBar", nI)
                             if nI >= 0.10:
                                 break
@@ -94,7 +97,7 @@ class Worker:
                         nI = 0.10
                         for i in range(10):
                             nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI*100)}%")
+                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
                             core.set_value("##ProgressBar", nI)
                             if nI >= 0.50:
                                 break
@@ -104,7 +107,7 @@ class Worker:
                         nI = 0.50
                         for i in range(10):
                             nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI*100)}%")
+                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
                             core.set_value("##ProgressBar", nI)
                             if nI >= 0.80:
                                 break
@@ -114,7 +117,7 @@ class Worker:
                         nI = 0.80
                         for i in range(10):
                             nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI*100)}%")
+                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
                             core.set_value("##ProgressBar", nI)
                             if nI >= 0.90:
                                 break
@@ -124,13 +127,13 @@ class Worker:
                         nI = 0.90
                         for i in range(10):
                             nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI*100)}%")
+                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
                             core.set_value("##ProgressBar", nI)
                             if nI >= 1.0:
                                 on_render = 0
                                 break
                             sleep(0.8)
-        except:
+        except threading.ThreadError:
             self.run2()
 
 
@@ -144,9 +147,6 @@ def long_process():
     w = Worker()
     d = threading.Thread(name='daemon2', target=w.run2, daemon=True)
     d.start()
-
-
-
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -169,7 +169,7 @@ def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon):
     logging.info("Building Faceit stats")
     core.add_button("\t\tFACEIT STATS\t\t", callback=switch_back_to_menu)
     core.add_same_line(name="##reload_same_line", show=False)
-    core.add_image("##reload_image", value="resources/ref.png", width=16, height=16,  show=False)
+    core.add_image("##reload_image", value="resources/ref.png", width=16, height=16, show=False)
     for i in list_faceit[0]:
         nI = nI + 1
         if i == str(1) and nI == 0:
@@ -207,7 +207,6 @@ def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon):
             core.add_text("\tMatches Won")
             core.add_same_line(xoffset=130)
             core.add_text("matcheswon##", default_value=f"{iMatchesWon}")
-
 
 
 def add_last_game(acMap, acResult, acScore, acKd, acEloDiff, iKills, iDeath):
@@ -336,4 +335,3 @@ def show_main():
         hwnd = win32gui.GetForegroundWindow()
         win32gui.SetWindowText(hwnd, f"{name} Elo")
         start_threading = 1
-
