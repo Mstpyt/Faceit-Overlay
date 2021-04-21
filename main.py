@@ -35,6 +35,22 @@ def startup():
     nameFACEIT = ""
 
     if iRv > 0:
+        iRv = config_functions.check_if_refresh_config_entry_exists()
+        if iRv <= 0:
+            sqlite3db.TExecSql(DBNAME,
+                               """
+                                     INSERT INTO CFG_REFRESH
+                                     VALUES (?)
+                                     """, 60
+                               )
+        iRv = config_functions.check_if_refresh_symbol_config_entry_exists()
+        if iRv <= 0:
+            sqlite3db.TExecSql(DBNAME,
+                               """
+                               INSERT INTO CFG_REFRESH_SIGN
+                               VALUES (?)
+                               """ ,True
+                               )
         iRv = config_functions.check_if_config_entry_exists()
         if iRv > 0:
             list_faceit = sqlite3db.TExecSqlReadMany(DBNAME, """
@@ -280,6 +296,33 @@ def reset_colors():
     """
     colors = config_functions.get_color()
     set_colors(colors)
+
+
+""" -------------------------------------------------------------------------------------------------------------------
+                                            REFRESH HANDLING
+---------------------------------------------------------------------------------------------------------------------"""
+
+
+def save_refresh_time():
+    """
+    Saving the COL_List into the Database
+    if there is already a entry into the database the entry will be updated
+    """
+    refresh = core.get_value("##RefreshTime")
+    if int(refresh) < 5:
+        animation_config_color()
+        set_error("Refresh time can not be ")
+    sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_REFRESH SET REFRESH = ?
+                            """, refresh)
+    animation_config_color()
+
+
+def refresh_symbol():
+    sign = core.get_value("Refresh Symbol##RefreshTime")
+    sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_REFRESH_SIGN SET REFRESH_SIGN = ?
+                            """, str(sign))
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -745,8 +788,10 @@ def start_build_dpg():
             core.add_same_line()
             core.add_button("Reset", callback=reset_colors)
             core.add_button("Save Colors", callback=save_colors)
+            core.add_spacing(count=2)
             core.add_separator()
             core.add_separator()
+            core.add_spacing(count=2)
             scale = config_functions.get_scale()
             core.set_global_font_scale(scale)
             core.add_text("Change The Global Font Size")
@@ -756,6 +801,25 @@ def start_build_dpg():
 
             core.add_button("Reset##1", callback=reset_scale)
             core.add_button("Save Size##1", callback=save_scale)
+            core.add_spacing(count=2)
+            core.add_separator()
+            core.add_separator()
+            core.add_spacing(count=2)
+            refresh = config_functions.get_refresh()
+            refreshSymbol = config_functions.get_refresh_sign()
+            core.add_text("Change The refresh time for the Overlay ( in seconds )")
+            core.add_input_int("##RefreshTime", default_value=refresh, min_value=5)
+            core.add_button("Save refresh time##1", callback=save_refresh_time)
+            if refreshSymbol in "True":
+                refreshSymbol = True
+            else:
+                refreshSymbol = False
+            core.add_spacing(count=2)
+            core.add_text("Enable, Disable the refresh sign in the overlay")
+            core.add_checkbox("Refresh Symbol##RefreshTime", default_value=refreshSymbol,
+                              callback=refresh_symbol)
+            core.add_separator()
+            core.add_separator()
         core.add_spacing(count=5)
         core.add_image_button("##ConfigQuestion", value="resources/q.png",
                               callback=animation_config_help, frame_padding=1,
