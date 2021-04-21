@@ -66,7 +66,16 @@ def create_database(database_name: str):
             TARGET          TEXT
             )
         """)
-
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS CFG_REFRESH(
+            REFRESH          INT
+            )
+        """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS CFG_REFRESH_SIGN(
+            REFRESH_SIGN          TEXT
+            )
+        """)
         conn.commit()
         conn.close()
     except sqlite3.Error as err:
