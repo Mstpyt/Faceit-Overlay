@@ -14,3 +14,4 @@ The colors are all changeable and the stats can be turned on/off.
 
 Streams in Use:
 - https://www.twitch.tv/lulooo_
+- https://www.twitch.tv/maniac
