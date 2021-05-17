@@ -4,7 +4,7 @@ Welcome to the Faceit-Overlay for CS:GO Streamers.
 The overlay is completely programmed in python and the GUI was created using Dear PyGui.
 
 To download the executable for windows use the following link:
-http://176.10.127.166/download.php
+https://www.illupy.ch/
 
 The colors are all changeable and the stats can be turned on/off.
 
