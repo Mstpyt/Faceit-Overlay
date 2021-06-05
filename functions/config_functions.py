@@ -24,22 +24,6 @@ def check_if_dbfile_exists():
     return 0
 
 
-def check_if_config_entry_exists():
-    """
-    Check if there is any entry in CFG_STATS_FACEIT.
-    return : 1 if exists
-             0 if not exists
-    """
-    logging.info("start check_if_config_entry_exists")
-    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
-            SELECT COUNT(*) FROM CFG_STATS_FACEIT
-            """)
-    if iRv > 0:
-        return 1
-    else:
-        return 0
-
-
 def check_if_elo_entry_exists():
     """
     Check if there is any entry in CFG_STATS_FACEIT.
@@ -58,68 +42,35 @@ def check_if_elo_entry_exists():
         return 0
 
 
-def check_if_color_config_entry_exists():
+def check_if_config_entry_exists(statement):
     """
-    Check if there is any entry in CFG_COLORS
+    Check if there is any entry in CFG_STATS_FACEIT.
     return : 1 if exists
              0 if not exists
     """
-    logging.info("start check_if_color_config_entry_exists")
-    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
-            SELECT COUNT(*) FROM CFG_COLORS
-            """)
+    logging.info("start check_if_config_entry_exists")
+    iRv = sqlite3db.TExecSqlReadCount(DBNAME, statement)
     if iRv > 0:
         return 1
     else:
         return 0
 
 
-def check_if_scale_config_entry_exists():
+def get_win_loss():
     """
-    Check if there is any entry in CFG_SCALE
-    return : 1 if exists
-             0 if not exists
+    Get the refresh time from the DB.
+    return : int from DB
     """
-    logging.info("start check_if_scale_config_entry_exists")
-    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
-            SELECT COUNT(*) FROM CFG_SCALE
+    logging.info("start get_win_loss")
+    iRv = check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_WIN_LOSS
             """)
     if iRv > 0:
-        return 1
-    else:
-        return 0
-
-
-def check_if_refresh_config_entry_exists():
-    """
-    Check if there is any entry in CFG_REFRESH
-    return : 1 if exists
-             0 if not exists
-    """
-    logging.info("start check_if_refresh_config_entry_exists")
-    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
-            SELECT COUNT(*) FROM CFG_REFRESH
-            """)
-    if iRv > 0:
-        return 1
-    else:
-        return 0
-
-
-def check_if_refresh_symbol_config_entry_exists():
-    """
-    Check if there is any entry in CFG_REFRESH
-    return : 1 if exists
-             0 if not exists
-    """
-    logging.info("start check_if_refresh_symbol_config_entry_exists")
-    iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
-            SELECT COUNT(*) FROM CFG_REFRESH_SIGN
-            """)
-    if iRv > 0:
-        return 1
-    else:
-        return 0
+        win_loss = sqlite3db.TExecSqlReadMany(DBNAME, """
+                                SELECT * FROM CFG_WIN_LOSS
+                                """)
+        return win_loss
+    return False, False
 
 
 def get_refresh_sign():
@@ -128,7 +79,9 @@ def get_refresh_sign():
     return : int from DB
     """
     logging.info("start get_refresh_sign")
-    iRv = check_if_refresh_config_entry_exists()
+    iRv = check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_REFRESH
+            """)
     if iRv > 0:
         refresh = sqlite3db.TExecSqlReadMany(DBNAME, """
                                 SELECT * FROM CFG_REFRESH_SIGN
@@ -145,7 +98,9 @@ def get_refresh():
     return : int from DB
     """
     logging.info("start get_refresh")
-    iRv = check_if_refresh_config_entry_exists()
+    iRv = check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_REFRESH
+            """)
     if iRv > 0:
         refresh = sqlite3db.TExecSqlReadMany(DBNAME, """
                                 SELECT * FROM CFG_REFRESH
@@ -163,7 +118,9 @@ def get_scale():
              Default Float 1.00
     """
     logging.info("start get_scale")
-    iRv = check_if_scale_config_entry_exists()
+    iRv = check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_SCALE
+            """)
     if iRv > 0:
         scale = sqlite3db.TExecSqlReadMany(DBNAME, """
                                 SELECT * FROM CFG_SCALE
@@ -183,7 +140,9 @@ def get_color():
              List with default colors
     """
     logging.info("start get_color")
-    iRv = check_if_color_config_entry_exists()
+    iRv = check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_COLORS
+            """)
     if iRv > 0:
         colors = sqlite3db.TExecSqlReadMany(DBNAME, """
                                 SELECT * FROM CFG_COLORS
@@ -243,34 +202,42 @@ def check_for_layout():
                                               )
     acEloGoal = sqlite3db.TExecSqlReadCount(DBNAME, """
                                             SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO""")
-
+    WinLoss = get_win_loss()
+    if WinLoss[0][0] == "1":
+        iCountFaceit = iCountFaceit + 1
+    if WinLoss[0][1] == "1":
+        iCountFaceit = iCountFaceit + 1
     for i in list_faceit[0]:
         if i == str(1):
             iCountFaceit = iCountFaceit + 1
     if acEloGoal:
         iCountFaceit = iCountFaceit + 1
+    nI = 0
     for i in list_matches[0]:
         if i == str(1):
-            iCountMatch = iCountMatch + 1
+            if nI > 1:
+                iCountMatch = iCountMatch + 1
+        nI = nI + 1
     iCount = iCountFaceit + iCountMatch
+    print(iCount)
     if iCount == 14:
-        heigh = 300
+        heigh = 345
     if iCount == 13:
-        heigh = 285
+        heigh = 330
     if iCount == 12:
-        heigh = 270
+        heigh = 305
     if iCount == 11:
-        heigh = 267
+        heigh = 285
     if iCount == 10:
-        heigh = 250
+        heigh = 265
     if iCount == 9:
-        heigh = 235
+        heigh = 250
     if iCount == 8:
-        heigh = 215
+        heigh = 230
     if iCount == 7:
-        heigh = 195
+        heigh = 210
     if iCount == 6:
-        heigh = 180
+        heigh = 195
     if iCount == 5:
         heigh = 170
     if iCount == 4:
