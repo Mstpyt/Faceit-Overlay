@@ -1,17 +1,27 @@
-import math
-from time import sleep
+import logging
+
 import win32gui
 from dearpygui import core, simple
 from dearpygui.core import mvGuiCol_Text, mvGuiCol_WindowBg, mvGuiCol_Button, mvGuiCol_Border, \
     mvGuiCol_ButtonActive, delete_item, mvGuiCol_ButtonHovered, mvGuiCol_BorderShadow, \
     mvGuiStyleVar_WindowRounding
 from dearpygui.demo import mvGuiStyleVar_FramePadding
+
 import eloOverlay
-from config import DBNAME
+from config import DBNAME, WEB_FONT
 from database import db_create, sqlite3db
-from functions import config_functions, functions
-import logging
 from faceit import faceit_api
+from functions import config_functions, functions, webHandler
+from functions import openFileDialog
+from guiHandling.animationHandler import animation_config_color, animation_config_web, animation_config_help
+from guiHandling.colorHandling import reset_colors, save_colors, test_colors
+from guiHandling.errorHandler import set_error, set_warning, delete_error
+from guiHandling.refreshHandler import save_refresh_time, refresh_symbol
+from guiHandling.sizeHandler import save_scale, reset_scale
+from guiHandling.webHandler import save_font, save_web
+from guiHandling.winLossHandler import win_los
+from web import overlayWeb, webFunctions
+
 """
 Global Values
 iChanges : set if a change was made in a configuration
@@ -35,7 +45,9 @@ def startup():
     nameFACEIT = ""
 
     if iRv > 0:
-        iRv = config_functions.check_if_refresh_config_entry_exists()
+        iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_REFRESH
+            """)
         if iRv <= 0:
             sqlite3db.TExecSql(DBNAME,
                                """
@@ -43,15 +55,41 @@ def startup():
                                      VALUES (?)
                                      """, 60
                                )
-        iRv = config_functions.check_if_refresh_symbol_config_entry_exists()
+        iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_REFRESH_SIGN
+            """)
         if iRv <= 0:
             sqlite3db.TExecSql(DBNAME,
                                """
                                INSERT INTO CFG_REFRESH_SIGN
                                VALUES (?)
-                               """ ,True
+                               """, "True"
                                )
-        iRv = config_functions.check_if_config_entry_exists()
+        iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_WEB
+            """)
+        if iRv <= 0:
+            ins = 'False', 'False'
+            sqlite3db.TExecSql(DBNAME,
+                               """
+                               INSERT INTO CFG_WEB
+                               VALUES (?,?)
+                               """, ins
+                               )
+        iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_WIN_LOSS
+            """)
+        if iRv <= 0:
+            Initial_Load = (False, False)
+            sqlite3db.TExecSql(DBNAME,
+                               """
+                                     INSERT INTO CFG_WIN_LOSS
+                                     VALUES (?, ?)
+                                     """, Initial_Load
+                               )
+        iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_STATS_FACEIT
+            """)
         if iRv > 0:
             list_faceit = sqlite3db.TExecSqlReadMany(DBNAME, """
                                                     SELECT * FROM CFG_STATS_FACEIT
@@ -88,280 +126,6 @@ def startup():
 
 
 """ -------------------------------------------------------------------------------------------------------------------
-                                            APPLY CONFIGURATION
----------------------------------------------------------------------------------------------------------------------"""
-
-
-def get_values_to_safe_faceit():
-    """
-    get all values to save and return them in different lists.
-    """
-    acName = core.get_value("##FaceitName")
-    acElo = core.get_value("Current Elo##stats")
-    acRank = core.get_value("Faceit Rank##stats")
-    acEloToday = core.get_value("Elo Gained today##stats")
-    acStreak = core.get_value("Win Streak##stats")
-    acTotMatches = core.get_value("Total Matches##stats")
-    acMatchesWon = core.get_value("Matches Won##stats")
-    acScore = core.get_value("Score##match")
-    acResult = core.get_value("Result (W/L)##match")
-    acMap = core.get_value("Map##match")
-    acKd = core.get_value("K/D##match")
-    acEloDiff = core.get_value("Elo Diff##match")
-    acKills = core.get_value("Kills##match")
-    acDeath = core.get_value("Death##match")
-
-    FACEIT_List = (acElo, acRank, acEloToday,
-                   acStreak, acTotMatches, acMatchesWon)
-    MATCH_List = (acMap, acResult, acScore, acKd, acEloDiff,
-                  acKills, acDeath)
-    return FACEIT_List, MATCH_List, acName
-
-
-def save_data():
-    """
-    Save all configuration into the database. if a database already exists update the current one.
-    get and set the FACEIT name. if the Name isn't correct set error
-    """
-    global iChanges
-    iRv = config_functions.check_if_config_entry_exists()
-    FACEIT_List, MATCH_List, acName = get_values_to_safe_faceit()
-    name = config_functions.get_faceit_name_from_db()
-    acEloGoal = core.get_value("##EloGoal")
-    if not acName:
-        set_error("Faceit Name must be set!")
-        return
-    if name:
-        name = functions.listToStringWithoutBracketsAndAT(name[0])
-        if name != acName and acName:
-            sqlite3db.TExecSql(DBNAME, """
-                            DELETE FROM CFG_FACEIT_NAME""")
-            sqlite3db.TExecSql(DBNAME, """
-                                        INSERT INTO CFG_FACEIT_NAME
-                                        VALUES (? )""", acName)
-
-    if iRv == 1:
-        sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_STATS_FACEIT SET CurrentElo = ?,
-                            Rank = ?,
-                            EloToday = ?,
-                            WinStreak = ?,
-                            TotalMatches = ?,
-                            MatchesWon = ?
-        
-        """, FACEIT_List)
-        sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_STATS_MATCH SET Score = ?,
-                            Result = ?,
-                            Map = ?,
-                            KD = ?,
-                            EloDiff = ?,
-                            Kills = ?,
-                            Death = ?
-        """, MATCH_List)
-        sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_FACEIT_NAME SET Name = ?
-                            """, acName)
-    else:
-        sqlite3db.TExecSql(DBNAME, """
-                            INSERT INTO CFG_STATS_FACEIT
-                            VALUES (?, ?, ?, ?, ?, ?)""", FACEIT_List)
-        sqlite3db.TExecSql(DBNAME, """
-                            INSERT INTO CFG_STATS_MATCH
-                            VALUES (?, ?, ?, ?, ?, ?, ?)""", MATCH_List)
-        if acName:
-            sqlite3db.TExecSql(DBNAME, """
-                                        INSERT INTO CFG_FACEIT_NAME
-                                        VALUES (? )""", acName)
-    if acEloGoal:
-        iRv = sqlite3db.TExecSqlReadCount(DBNAME,"""
-                            SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO                    
-                                """)
-        if iRv > 0:
-            sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_FACEIT_TARGET_ELO
-                            SET TARGET = ?
-            """, int(acEloGoal))
-        else:
-            sqlite3db.TExecSql(DBNAME, """
-                            INSERT INTO CFG_FACEIT_TARGET_ELO
-                            VALUES (? )""", acEloGoal)
-    else:
-        sqlite3db.TExecSql(DBNAME, """
-                            DELETE FROM CFG_FACEIT_TARGET_ELO""")
-    delete_error()
-    COL_List = config_functions.get_color()
-    core.set_item_color("Apply Configuration", mvGuiCol_Text,
-                        (COL_List[1][1], COL_List[1][2], COL_List[1][3], 255))
-    iRv = faceit_api.get_api_user(acName)
-    if iRv is None:
-        set_error("Error: Wrong FACEIT Name")
-    iChanges = 0
-
-
-""" -------------------------------------------------------------------------------------------------------------------
-                                            COLOR HANDLING
----------------------------------------------------------------------------------------------------------------------"""
-
-
-def get_data_from_colors():
-    """
-    get the COL_List from the add_color_edit3 objects
-    return every object single but also as list
-    """
-    HEADER_List = list(map(int, core.get_value("Header#Color")))
-    TEXT_List = list(map(int, core.get_value("Text#Color")))
-    BUT_ACTIVE_List = list(map(int, core.get_value("ButtonActive#Color")))
-    BG_List = list(map(int, core.get_value("BG#Color")))
-    OUTLINE_List = list(map(int, core.get_value("Outline#Color")))
-    COL_List = (HEADER_List, TEXT_List, BUT_ACTIVE_List, BG_List, OUTLINE_List)
-    return HEADER_List, TEXT_List, BUT_ACTIVE_List, BG_List, OUTLINE_List, COL_List
-
-
-def save_colors():
-    """
-    Saving the COL_List into the Database
-    if there is already a entry into the database the entry will be updated
-    """
-    iRv = config_functions.check_if_color_config_entry_exists()
-    HEADER_List, TEXT_List, BUT_ACTIVE_List, BG_List, OUTLINE_List, COL_List = get_data_from_colors()
-    DBUPDATE_List = ("Header", "Text", "ButtonActive", "Background", "Outline")
-    cnt = 0
-    if iRv > 0:
-        for x in DBUPDATE_List:
-            COL_List[cnt].append(x)
-            sqlite3db.TExecSql(DBNAME, """
-                                    UPDATE CFG_COLORS SET Red = ?,
-                                    Green = ?,
-                                    Blue = ?,
-                                    Trans = ?
-                                    WHERE Type = ?
-                                    """, COL_List[cnt])
-            cnt += 1
-    else:
-        cnt = 0
-        for x in DBUPDATE_List:
-            COL_List[cnt].append(x)
-            sqlite3db.TExecSql(DBNAME,
-                               """
-                                     INSERT INTO CFG_COLORS
-                                     VALUES (?, ?, ?, ?, ?)
-                                     """, COL_List[cnt]
-                               )
-            cnt += 1
-    set_colors(COL_List)
-    animation_config_color()
-
-
-def set_colors(COL_List: list):
-    """
-    Set the Theme Colors new
-    """
-    core.set_theme_item(mvGuiCol_Button, COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3])
-    core.set_theme_item(mvGuiCol_ButtonHovered,COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3])
-    core.set_theme_item(mvGuiCol_Text, COL_List[1][0], COL_List[1][1], COL_List[1][2], COL_List[1][3])
-    core.set_theme_item(mvGuiCol_ButtonActive, COL_List[2][0], COL_List[2][1], COL_List[2][2], COL_List[2][3])
-    core.set_theme_item(mvGuiCol_WindowBg, COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3])
-    core.set_theme_item(mvGuiCol_Border, COL_List[4][0], COL_List[4][1], COL_List[4][2], COL_List[4][3])
-    core.set_item_color("##Config", mvGuiCol_Text,
-                        color=(COL_List[1][0], COL_List[1][1], COL_List[1][2], COL_List[1][3]))
-    core.set_item_color("##Config", mvGuiCol_WindowBg,
-                        color=(COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3] - 10))
-    core.set_item_style_var("##Config", mvGuiStyleVar_WindowRounding, value=[0])
-    core.set_item_color("##Config", mvGuiCol_Border,
-                        color=(COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3]))
-    core.set_item_color("Start", mvGuiCol_Button,
-                        color=(COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3]))
-    core.set_item_color("Start", mvGuiCol_ButtonActive,
-                        color=(COL_List[2][0], COL_List[2][1], COL_List[2][2] - 10))
-    core.set_value("Header#Color", [COL_List[0][0], COL_List[0][1], COL_List[0][2], COL_List[0][3]])
-    core.set_value("Text#Color", [COL_List[1][0], COL_List[1][1], COL_List[1][2], COL_List[1][3]])
-    core.set_value("ButtonActive#Color", [COL_List[2][0], COL_List[2][1], COL_List[2][2], COL_List[2][3]])
-    core.set_value("BG#Color", [COL_List[3][0], COL_List[3][1], COL_List[3][2], COL_List[3][3]])
-    core.set_value("Outline#Color", [COL_List[4][0], COL_List[4][1], COL_List[4][2], COL_List[4][3]])
-
-
-def test_colors():
-    """
-    Test the COL_List and don't save them into the database
-    """
-    header, text, butactive, background, outline, colors = get_data_from_colors()
-    set_colors(colors)
-    animation_config_color()
-
-
-def reset_colors():
-    """
-    Get the COL_List saved into the database and set them
-    """
-    colors = config_functions.get_color()
-    set_colors(colors)
-
-
-""" -------------------------------------------------------------------------------------------------------------------
-                                            REFRESH HANDLING
----------------------------------------------------------------------------------------------------------------------"""
-
-
-def save_refresh_time():
-    """
-    Saving the COL_List into the Database
-    if there is already a entry into the database the entry will be updated
-    """
-    refresh = core.get_value("##RefreshTime")
-    if int(refresh) < 5:
-        animation_config_color()
-        set_error("Refresh time can not be ")
-    sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_REFRESH SET REFRESH = ?
-                            """, refresh)
-    animation_config_color()
-
-
-def refresh_symbol():
-    sign = core.get_value("Refresh Symbol##RefreshTime")
-    sqlite3db.TExecSql(DBNAME, """
-                            UPDATE CFG_REFRESH_SIGN SET REFRESH_SIGN = ?
-                            """, str(sign))
-
-
-""" -------------------------------------------------------------------------------------------------------------------
-                                            SIZE HANDLING
----------------------------------------------------------------------------------------------------------------------"""
-
-
-def save_scale():
-    """
-    Saving the COL_List into the Database
-    if there is already a entry into the database the entry will be updated
-    """
-    iRv = config_functions.check_if_scale_config_entry_exists()
-    scale = core.get_global_font_scale()
-    if iRv > 0:
-        sqlite3db.TExecSql(DBNAME, """
-                                UPDATE CFG_SCALE SET Scale = ?
-                                """, scale)
-
-    else:
-        sqlite3db.TExecSql(DBNAME,
-                           """
-                                 INSERT INTO CFG_SCALE
-                                 VALUES (?)
-                                 """, scale
-                           )
-    animation_config_color()
-
-
-def reset_scale():
-    """
-    Saving the COL_List into the Database
-    if there is already a entry into the database the entry will be updated
-    """
-    core.set_value("Global Scale", 1.0)
-    core.set_global_font_scale(1.0)
-
-
-""" -------------------------------------------------------------------------------------------------------------------
                                             CHECKBOX HANDLING
 ---------------------------------------------------------------------------------------------------------------------"""
 
@@ -381,7 +145,7 @@ def changes_detected():
               core.get_value("Map##match"))
     for x in acList:
         if x is False:
-            cnt = cnt+1
+            cnt = cnt + 1
     if cnt != 2:
         for x in acList:
             if x is False:
@@ -435,64 +199,117 @@ def enable_all(sender):
 
 
 """ -------------------------------------------------------------------------------------------------------------------
-                                            Animation open Close config
+                                            APPLY CONFIGURATION
 ---------------------------------------------------------------------------------------------------------------------"""
 
 
-def animation_config_color():
-    i = 0
-    logging.info("start animation config_color")
-    conf = core.get_item_configuration("##Config")
-    help = core.get_item_configuration("##Help")
-    if help["show"] is True:
-        core.configure_item("##Help", show=False)
-        core.configure_item("##Config_Colors", show=True)
-        return
-    if conf["width"] < 350:
-        core.configure_item("##Config_Colors", show=True)
-        core.configure_item("##Help", show=False)
-        while i <= 1:
-            x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.03
-            core.configure_item("##Config", x_pos=0, width=380 + x_pos)
-            sleep(0.001)
-    else:
-        core.configure_item("##Config_Colors", show=False)
-        core.configure_item("##Help", show=False)
-        while i <= 1:
-            x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.03
-            core.configure_item("##Config", x_pos=0, width=60 - x_pos)
-            sleep(0.001)
-    logging.info("end animation config_color")
+def get_values_to_safe_faceit():
+    """
+    get all values to save and return them in different lists.
+    """
+    acName = core.get_value("##FaceitName")
+    acElo = core.get_value("Current Elo##stats")
+    acRank = core.get_value("Faceit Rank##stats")
+    acEloToday = core.get_value("Elo Gained today##stats")
+    acStreak = core.get_value("Win Streak##stats")
+    acTotMatches = core.get_value("Total Matches##stats")
+    acMatchesWon = core.get_value("Matches Won##stats")
+    acScore = core.get_value("Score##match")
+    acResult = core.get_value("Result (W/L)##match")
+    acMap = core.get_value("Map##match")
+    acKd = core.get_value("K/D##match")
+    acEloDiff = core.get_value("Elo Diff##match")
+    acKills = core.get_value("Kills##match")
+    acDeath = core.get_value("Death##match")
+
+    FACEIT_List = (acElo, acRank, acEloToday,
+                   acStreak, acTotMatches, acMatchesWon)
+    MATCH_List = (acMap, acResult, acScore, acKd, acEloDiff,
+                  acKills, acDeath)
+    return FACEIT_List, MATCH_List, acName
 
 
-def animation_config_help():
-    logging.info("start animation config_help")
-    i = 0
-    help = core.get_item_configuration("##Config")
-    conf = core.get_item_configuration("##Config_Colors")
-    if conf["show"] is True:
-        core.configure_item("##Help", show=True)
-        core.configure_item("##Config_Colors", show=False)
+def save_data():
+    """
+    Save all configuration into the database. if a database already exists update the current one.
+    get and set the FACEIT name. if the Name isn't correct set error
+    """
+    global iChanges
+    iRv = config_functions.check_if_config_entry_exists("""
+            SELECT COUNT(*) FROM CFG_STATS_FACEIT
+            """)
+    FACEIT_List, MATCH_List, acName = get_values_to_safe_faceit()
+    name = config_functions.get_faceit_name_from_db()
+    acEloGoal = core.get_value("##EloGoal")
+    if not acName:
+        set_error("Faceit Name must be set!")
         return
-    if help["width"] < 350:
-        core.configure_item("##Config_Colors", show=False)
-        core.configure_item("##Help", show=True)
-        while i <= 1:
-            x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.03
-            core.configure_item("##Config", x_pos=0, width=380 + x_pos)
-            sleep(0.001)
+    if name:
+        name = functions.listToStringWithoutBracketsAndAT(name[0])
+        if name != acName and acName:
+            sqlite3db.TExecSql(DBNAME, """
+                            DELETE FROM CFG_FACEIT_NAME""")
+            sqlite3db.TExecSql(DBNAME, """
+                                        INSERT INTO CFG_FACEIT_NAME
+                                        VALUES (? )""", acName)
+
+    if iRv == 1:
+        sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_STATS_FACEIT SET CurrentElo = ?,
+                            Rank = ?,
+                            EloToday = ?,
+                            WinStreak = ?,
+                            TotalMatches = ?,
+                            MatchesWon = ?
+
+        """, FACEIT_List)
+        sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_STATS_MATCH SET Score = ?,
+                            Result = ?,
+                            Map = ?,
+                            KD = ?,
+                            EloDiff = ?,
+                            Kills = ?,
+                            Death = ?
+        """, MATCH_List)
+        sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_FACEIT_NAME SET Name = ?
+                            """, acName)
     else:
-        core.configure_item("##Config_Colors", show=False)
-        core.configure_item("##Help", show=False)
-        while i <= 1:
-            x_pos = int((1 - math.pow((1 - i), 8)) * (50))
-            i += 0.03
-            core.configure_item("##Config", x_pos=0, width=60 - x_pos)
-            sleep(0.001)
-    logging.info("end animation config_help")
+        sqlite3db.TExecSql(DBNAME, """
+                            INSERT INTO CFG_STATS_FACEIT
+                            VALUES (?, ?, ?, ?, ?, ?)""", FACEIT_List)
+        sqlite3db.TExecSql(DBNAME, """
+                            INSERT INTO CFG_STATS_MATCH
+                            VALUES (?, ?, ?, ?, ?, ?, ?)""", MATCH_List)
+        if acName:
+            sqlite3db.TExecSql(DBNAME, """
+                                        INSERT INTO CFG_FACEIT_NAME
+                                        VALUES (? )""", acName)
+    if acEloGoal:
+        iRv = sqlite3db.TExecSqlReadCount(DBNAME, """
+                            SELECT COUNT(*) FROM CFG_FACEIT_TARGET_ELO                    
+                                """)
+        if iRv > 0:
+            sqlite3db.TExecSql(DBNAME, """
+                            UPDATE CFG_FACEIT_TARGET_ELO
+                            SET TARGET = ?
+            """, int(acEloGoal))
+        else:
+            sqlite3db.TExecSql(DBNAME, """
+                            INSERT INTO CFG_FACEIT_TARGET_ELO
+                            VALUES (? )""", acEloGoal)
+    else:
+        sqlite3db.TExecSql(DBNAME, """
+                            DELETE FROM CFG_FACEIT_TARGET_ELO""")
+    delete_error()
+    COL_List = config_functions.get_color()
+    core.set_item_color("Apply Configuration", mvGuiCol_Text,
+                        (COL_List[1][1], COL_List[1][2], COL_List[1][3], 255))
+    iRv = faceit_api.get_api_user(acName)
+    if iRv is None:
+        set_error("Error: Wrong FACEIT Name")
+    iChanges = 0
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -515,76 +332,26 @@ def open_overlay():
         if iChanges == 1:
             set_warning("Configuration not saved, press Apply Configuration")
         else:
-            height = config_functions.check_for_layout()
-            hwnd = win32gui.GetForegroundWindow()
-            win32gui.MoveWindow(hwnd, 0, 0, 208, height[0] + 39, True)
-            simple.hide_item("##Overlay")
-            simple.hide_item("##Config")
-            win32gui.SetWindowText(hwnd, f"{faceit_name} Elo")
-            eloOverlay.show_main()
+            web = webFunctions.get_web()
+            if web[0]:
+                overlayWeb.open_browser_and_fill_with_content()
+            if web[1]:
+                overlayWeb.open_browser_and_fill_with_content()
+                open_app_overlay(faceit_name)
+            if not web[0] and not web[1]:
+                open_app_overlay(faceit_name)
     else:
         set_error("No FACEIT Name configured")
 
 
-""" -------------------------------------------------------------------------------------------------------------------
-                                            ERROR / WARNING HANDLING
----------------------------------------------------------------------------------------------------------------------"""
-
-
-def set_warning(warningTxt):
-    """
-    Warning handling ; set
-    add a collapsing_header to display the Warning Message
-    """
-    if not core.does_item_exist("Warning##Warning"):
-        with simple.collapsing_header("Warning##Warning", parent="##GroupStats",
-                                      default_open=True,
-                                      closable=False,
-                                      bullet=True):
-            core.add_text("Warning", default_value=warningTxt, color=(255, 255, 0, 255))
-
-
-def set_error(errTxt):
-    """
-    Error handling ; set
-    set the defined Button to Red
-    add a collapsing_header to display the Error Message
-    """
-    core.set_item_color("Start", mvGuiCol_Button, (255, 0, 0, 255))
-    core.set_item_color("Start", mvGuiCol_ButtonActive, (255, 0, 0, 255))
-    core.set_item_color("Start", mvGuiCol_ButtonHovered, (255, 0, 0, 255))
-    if not core.does_item_exist("Error##ErrorNoFACEITName"):
-        with simple.collapsing_header("Error##ErrorNoFACEITName", parent="##GroupStats",
-                                      default_open=True,
-                                      closable=False,
-                                      bullet=True):
-            core.add_text("ErrorText", default_value=errTxt, color=(255, 0, 0, 255))
-
-
-def reset_error(itemtodelete):
-    """
-    Error handling ; reset
-    set the defined Button back to the configured color
-    delete the collapsing_header if needed
-    """
-    core.delete_item(itemtodelete)
-    colors = config_functions.get_color()
-    core.set_item_color("Start", mvGuiCol_Button, (colors[0][0], colors[0][1], colors[0][2], colors[0][3]))
-    core.set_item_color("Start", mvGuiCol_ButtonActive, (colors[2][0], colors[2][1], colors[2][2], colors[0][3]))
-    core.set_item_color("Start", mvGuiCol_ButtonHovered, (colors[0][0], colors[0][1], colors[0][2], colors[0][3]))
-
-
-def delete_error():
-    """
-    Error handling ; delete
-    delete error/warning messages
-    call reset_error to set the COL_List back
-    """
-    item = core.get_all_items()
-    for i in item:
-        if "Error" in i or "Warning" in i:
-            if core.does_item_exist(i):
-                reset_error(i)
+def open_app_overlay(faceit_name):
+    height = config_functions.check_for_layout()
+    hwnd = win32gui.GetForegroundWindow()
+    win32gui.MoveWindow(hwnd, 0, 0, 208, height[0] + 39, True)
+    simple.hide_item("##Overlay")
+    simple.hide_item("##Config")
+    win32gui.SetWindowText(hwnd, f"{faceit_name} Elo")
+    eloOverlay.show_main()
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -593,7 +360,6 @@ def delete_error():
 
 
 def start_build_dpg():
-
     with simple.window("FACEIT Elo Overlay", on_close=lambda: delete_item("FACEIT Elo Overlay"),
                        no_title_bar=True, no_resize=True):
         """
@@ -602,7 +368,7 @@ def start_build_dpg():
 
         simple.set_window_pos("FACEIT Elo Overlay", 0, 0)
         core.set_main_window_title("FACEIT Elo Overlay")
-        core.set_main_window_size(492, 780)
+        core.set_main_window_size(492, 830)
         core.set_style_frame_rounding(6.00)
         core.add_additional_font("resources/OpenSans-Bold.ttf", size=14.5)
 
@@ -629,7 +395,7 @@ def start_build_dpg():
 
     with simple.window('##Overlay', no_collapse=True, no_resize=True, no_move=True, no_close=True, x_pos=30, y_pos=0,
                        width=445,
-                       height=740, no_title_bar=True):
+                       height=790, no_title_bar=True):
         """
         Set a Header 
         """
@@ -645,7 +411,7 @@ def start_build_dpg():
             core.add_button("Default Configurations##STATS")
             core.set_item_style_var("Default Configurations##STATS", mvGuiStyleVar_FramePadding, [5 * 20, 5 * 3])
             core.add_spacing(count=5)
-            core.add_text("##TextFaceitName", default_value="FACEIT Name:")
+            core.add_text("##TextFaceitName", default_value="FACEIT Name:", color=(255, 255, 0, -1))
             core.add_input_text("##FaceitName", hint="FACEIT Name Case sensitive", default_value=name,
                                 callback=changes_detected)
             core.add_spacing(count=2)
@@ -694,6 +460,17 @@ def start_build_dpg():
             core.add_same_line(xoffset=250)
             core.add_checkbox("Matches Won##stats", default_value=bool_list_faceit[5],
                               callback=changes_detected)
+            core.add_spacing(count=2)
+            win_loss = config_functions.get_win_loss()
+            print(win_loss)
+            if win_loss[0][0] is None:
+                win_loss = [(0, 0)]
+            core.add_text("##TextWinLoss", default_value="Win/Loss Stats:")
+            core.add_checkbox("Day##WinLoss", default_value=int(win_loss[0][0]),
+                              callback=lambda sender, data: win_los(sender))
+            core.add_same_line()
+            core.add_checkbox("Week##WinLoss", default_value=int(win_loss[0][1]),
+                              callback=lambda sender, data: win_los(sender))
             core.add_spacing(count=5)
             """
             Last Match header 
@@ -752,17 +529,17 @@ def start_build_dpg():
         core.set_item_style_var("Start", mvGuiStyleVar_FramePadding, [5 * 29.5, 5 * 3])
 
     with simple.window('##Config', no_collapse=True, no_resize=True, no_move=True, no_close=True, x_pos=0, y_pos=1,
-                       width=20, height=740, no_title_bar=True):
+                       width=20, height=790, no_title_bar=True):
         core.set_item_color("##Config", mvGuiCol_Text,
                             color=(COLOR_List[1][0], COLOR_List[1][1], COLOR_List[1][2], COLOR_List[1][3]))
         core.set_item_color("##Config", mvGuiCol_WindowBg,
-                            color=(COLOR_List[3][0], COLOR_List[3][1], COLOR_List[3][2], COLOR_List[3][3]-10))
+                            color=(COLOR_List[3][0], COLOR_List[3][1], COLOR_List[3][2], COLOR_List[3][3] - 10))
         core.set_item_style_var("##Config", mvGuiStyleVar_WindowRounding, value=[6])
         core.set_item_color("##Config", mvGuiCol_Border,
-                            color=(COLOR_List[4][0], COLOR_List[4][1], COLOR_List[4][2], COLOR_List[4][3]) )
+                            color=(COLOR_List[4][0], COLOR_List[4][1], COLOR_List[4][2], COLOR_List[4][3]))
         core.add_image_button("##ConfigPlus", value="resources/cfg_wheel.png",
                               callback=animation_config_color, frame_padding=1,
-                              tip="Change Colors")
+                              tip="Settings & Colors")
         core.add_same_line(xoffset=50)
         with simple.group("##Config_Colors", show=False):
             COLOR_List = config_functions.get_color()
@@ -808,7 +585,7 @@ def start_build_dpg():
             refresh = config_functions.get_refresh()
             refreshSymbol = config_functions.get_refresh_sign()
             core.add_text("Change The refresh time for the Overlay ( in seconds )")
-            core.add_input_int("##RefreshTime", default_value=refresh, min_value=5)
+            core.add_input_int("##RefreshTime", default_value=refresh, min_value=5, step=0)
             core.add_button("Save refresh time##1", callback=save_refresh_time)
             if refreshSymbol in "True":
                 refreshSymbol = True
@@ -820,70 +597,104 @@ def start_build_dpg():
                               callback=refresh_symbol)
             core.add_separator()
             core.add_separator()
-        core.add_spacing(count=5)
+            core.add_button("Close##Color", callback=animation_config_color)
+
+        core.add_spacing(count=3)
+        core.add_image_button("##ConfigWeb", value="resources/web.png",
+                              callback=animation_config_web, frame_padding=1,
+                              tip="Web")
+        core.add_spacing(count=2)
         core.add_image_button("##ConfigQuestion", value="resources/q.png",
                               callback=animation_config_help, frame_padding=1,
                               tip="Help")
         core.add_same_line(xoffset=50)
+
+        with simple.group("##Web", show=False):
+            web = webFunctions.get_web()
+            web_parameters = webHandler.get_web_parameters()
+            print(web_parameters)
+            bgimage = ""
+            core.add_text("Browser Settings")
+            core.add_checkbox("Open in Browser Only##Browser", default_value=web[0],
+                              callback=lambda sender, data: save_web())
+            core.add_same_line()
+            core.add_checkbox("Open in Browser and App##Browser", default_value=web[1],
+                              callback=lambda sender, data: save_web())
+            core.add_spacing(count=2)
+            core.add_text("Text Size (pixel)")
+            core.add_input_int("##BrowserTextSize", default_value=web_parameters[0][0],
+                               min_value=5, step=0, callback=save_font)
+            core.add_text("Text Font:")
+            core.add_combo("Font Family##Web", items=WEB_FONT,
+                           default_value=web_parameters[0][1], callback=save_font)
+            core.add_spacing(count=2)
+            core.add_text(name="Background Image##Web", default_value="Background Image")
+            core.add_input_text("##BgImage", default_value=web_parameters[0][2], readonly=True)
+            core.add_button("Search Background Image##Web", callback=openFileDialog.get_background_image,
+                            callback_data=bgimage)
+            core.add_same_line()
+            core.add_button("Delete Background Image##Web",
+                            callback=lambda sender, data: core.set_value("##BgImage", ""))
+            core.add_separator()
+            core.add_separator()
+            core.add_button("Close##Web", callback=animation_config_web)
+
         with simple.group("##Help", show=False):
+            core.add_text("OUTDATED, WILL BE UPDATED IN THE NEXT RELEASE")
             core.add_input_text("##HelpIntroText", multiline=True, readonly=True, height=110, width=340,
-                                default_value=
-                                "Welcome to the help page of the Faceit Overlay\n"
-                                "here the options and different possibilities are\n"
-                                "explained to you.\n"
-                                "Here is a small overview;\n"
-                                "1: Start menu\n"
-                                "2: Color configuration\n"
-                                "3: Overlay"
+                                default_value="Welcome to the help page of the Faceit Overlay\n"
+                                              "here the options and different possibilities are\n"
+                                              "explained to you.\n"
+                                              "Here is a small overview;\n"
+                                              "1: Start menu\n"
+                                              "2: Color configuration\n"
+                                              "3: Overlay"
                                 )
             core.add_spacing(count=2)
             core.add_text("1: Start menu")
             core.add_image("##StartmenuImage", value="resources/start_menu.png")
             core.add_input_text("##HelpStartMenuText", multiline=True, height=70, width=340, readonly=True,
-                                default_value=
-                                "The start menu is the configuration menu\n"
-                                "Here you can change colors, global size\n"
-                                "Enable / disable stats you want to see\n"
-                                "and start the Overlay"
+                                default_value="The start menu is the configuration menu\n"
+                                              "Here you can change colors, global size\n"
+                                              "Enable / disable stats you want to see\n"
+                                              "and start the Overlay"
                                 )
             core.add_spacing(count=2)
             core.add_text("2: Color configuration")
             core.add_image("##ColorconfImage", value="resources/color_config.png")
             core.add_input_text("##HelpColorConfigText", multiline=True, height=220, width=340, readonly=True,
-                                default_value=
-                                "Here you can adjust the colors according to your own taste.\n"
-                                "The buttons have the following functions:\n\n"
-                                "Test Color: Sets the color for the menu so that you can check it.\n"
-                                "Reset Color: Sets the colors back to the default value.\n"
-                                "Save Color: Saves the colors so that they will be kept\n"
-                                "\t\t\t\t\t   on the next startup.\n\n"
-                                "To adjust the global size of the texts and heads you can move \n"
-                                "the slider to the left or right and then use the buttons \n"
-                                "to perform the following functions:\n\n"
-                                "Reset: Set the size back to 1.0\n"
-                                "Save Size: Save the global size for the next start up"
+                                default_value="Here you can adjust the colors according to your own taste.\n"
+                                              "The buttons have the following functions:\n\n"
+                                              "Test Color: Sets the color for the menu so that you can check it.\n"
+                                              "Reset Color: Sets the colors back to the default value.\n"
+                                              "Save Color: Saves the colors so that they will be kept\n"
+                                              "\t\t\t\t\t   on the next startup.\n\n"
+                                              "To adjust the global size of the texts and heads you can move \n"
+                                              "the slider to the left or right and then use the buttons \n"
+                                              "to perform the following functions:\n\n"
+                                              "Reset: Set the size back to 1.0\n"
+                                              "Save Size: Save the global size for the next start up"
                                 )
             core.add_spacing(count=2)
             core.add_text("3: Overlay")
             core.add_image("##OverlayImage", value="resources/overlay.png")
             core.add_input_text("##HelpOverlayText", multiline=True, height=100, width=340, readonly=True,
-                                default_value=
-                                "The overlay has basically no functionalities except \n"
-                                "that it updates itself regularly (every 60 seconds) \n"
-                                "and thus adjusts the values.\n"
-                                "But if you click on the headers \n"
-                                "FACEIT STATS | LAST GAME  you get back to the start screen.\n"
+                                default_value="The overlay has basically no functionalities except \n"
+                                              "that it updates itself regularly (every 60 seconds) \n"
+                                              "and thus adjusts the values.\n"
+                                              "But if you click on the headers \n"
+                                              "FACEIT STATS | LAST GAME  you get back to the start screen.\n"
                                 )
+            core.add_button("Close##Help", callback=animation_config_help)
     """ ---------------------------------------------------------------------------------------------------------------
                                                 START DPG 
         -------------------------------------------------------------------------------------------------------------"""
-    core.set_start_callback(eloOverlay.long_process)
     core.enable_docking(dock_space=False)
     core.start_dearpygui(primary_window="FACEIT Elo Overlay")
 
 
 if __name__ == "__main__":
-    __version__ = '0.1'
+    __version__ = '0.2'
     __author__ = 'Marco Studer'
     functions.init_logger("overlay")
     start_build_dpg()
