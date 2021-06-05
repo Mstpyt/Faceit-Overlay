@@ -1,3 +1,35 @@
 DBNAME: str = "EloOverlay.sqlite"
 FACEIT_API = "FACEIT API KEY"
 FACEIT_API_V1 = "https://api.faceit.com/stats/api/v1/stats/time/users/{}/games/csgo"
+
+WEB_FONT = [
+    "Arial, sans-serif",
+    "Helvetica, sans-serif",
+    "Gill Sans, sans-serif",
+    "Lucida, sans-serif",
+    "Helvetica Narrow, sans-serif",
+    "sans-serif",
+    "Times, serif",
+    "Times New Roman, serif",
+    "Palatino, serif",
+    "Bookman, serif",
+    "New Century Schoolbook, serif",
+    "serif",
+    "Andale Mono, monospace",
+    "Courier New, monospace",
+    "Courier, monospace",
+    "Lucidatypewriter, monospace",
+    "Fixed, monospace",
+    "monospace",
+    "Comic Sans, Comic Sans MS, cursive",
+    "Zapf Chancery, cursive",
+    "Coronetscript, cursive",
+    "Florence, cursive",
+    "Parkavenue, cursive",
+    "cursive",
+    "Impact, fantasy",
+    "Arnoldboecklin, fantasy",
+    "Oldtown, fantasy",
+    "Blippo, fantasy",
+    "Brushstroke, fantasy",
+    "fantasy"]
