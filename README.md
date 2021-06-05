@@ -1,3 +1,4 @@
+
 # Faceit-Overlay
 
 Welcome to the Faceit-Overlay for CS:GO Streamers.
@@ -8,4 +9,4 @@ https://www.illupy.ch/
 
 The colors are all changeable and the stats can be turned on/off.
 
-![Faceit_Overlay](https://user-images.githubusercontent.com/52736876/114074235-75012580-98a4-11eb-8d27-f99e729ba70c.gif)
+![FaceitOverlay](https://user-images.githubusercontent.com/52736876/120886466-6312d900-c5ee-11eb-9449-85db7a3d9f40.gif)
