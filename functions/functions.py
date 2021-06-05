@@ -57,7 +57,7 @@ def init_logger(name: str):
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     hldr = logging.handlers.TimedRotatingFileHandler(
-        "logs/{}.log".format(name), when="W0", encoding="utf-8", backupCount=16
+        "logs/{}.log".format(name), when="W0", encoding="utf-8", backupCount=5
     )
     fmt = logging.Formatter(
         "[%(asctime)s][%(filename)s:%(lineno)d]\t[%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
