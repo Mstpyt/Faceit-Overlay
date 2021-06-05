@@ -1,20 +1,17 @@
+import logging
 import threading
 from time import sleep
 
 import win32gui
 from dearpygui import core, simple
 from dearpygui.core import delete_item
+
 from config import DBNAME
 from database import sqlite3db
+from faceit import faceit_api
 from functions import config_functions
 
-from faceit import faceit_api
-import logging
-
 start_threading = 0
-on_render = 0
-on_progress = 0
-build_is_done = 0
 
 """ -------------------------------------------------------------------------------------------------------------------
                                             THREADING HANDLING
@@ -36,6 +33,8 @@ class Worker:
         self.acEloDiff = ""
         self.iKills = 0
         self.iDeath = 0
+        self.iWin = 0
+        self.iLoss = 0
 
     def run(self):
         """
@@ -43,15 +42,21 @@ class Worker:
         """
         global start_threading
         while 1:
+            refresh_rate = config_functions.get_refresh()
+            sleep(refresh_rate)
             try:
                 name = sqlite3db.TExecSqlReadMany(DBNAME, """
                                     SELECT name FROM CFG_FACEIT_NAME
                                     """)
                 if name:
                     if start_threading == 1:
-                        refresh_rate = config_functions.get_refresh()
                         refreshSymbol = config_functions.get_refresh_sign()
                         logging.info("Get stats and refresh them")
+                        winLoss = config_functions.get_win_loss()
+                        if winLoss[0][0] == "1":
+                            mode = 0
+                        else:
+                            mode = 1
                         if refreshSymbol in "True":
                             core.configure_item("##reload_same_line", show=True)
                             core.configure_item("##reload_image", show=True)
@@ -59,7 +64,7 @@ class Worker:
                         self.acResult, self.acScore, self.acKd, \
                         self.acMap, self.iStreak, self.iMatches, \
                         self.iMatchesWon, self.acEloDiff, self.iKills, \
-                        self.iDeath = faceit_api.get_faceit_data_from_api()
+                        self.iDeath, self.iWin, self.iLoss = faceit_api.get_faceit_data_from_api(mode)
                         core.set_value("elotoday##", f"{self.acEloToday}")
                         core.set_value("streak##", f"{self.iStreak}")
                         core.set_value("map##", f"\t{self.acMap}:")
@@ -70,71 +75,17 @@ class Worker:
                         core.set_value("matches##", f"{self.iMatches}")
                         core.set_value("matcheswon##", f"{self.iMatchesWon}")
                         core.set_value("elodiffmap##", f"{self.acEloDiff}")
-                        core.set_value("kills##", f"{self.iKills}")
+                        core.set_value("kill##", f"{self.iKills}")
                         core.set_value("death##", f"{self.iDeath}")
-                        core.configure_item("##reload_same_line", show=False)
-                        core.configure_item("##reload_image", show=False)
-                        sleep(refresh_rate)
-            except threading.ThreadError:
-                self.run()
+                        core.set_value("kd##", f"{self.acKd}")
+                        core.set_value("Win/LossperDay##", f"{self.iWin} / {self.iLoss}")
+                        core.set_value("Win/LossperWeek##", f"{self.iWin} / {self.iLoss}")
+                        if core.does_item_exist("##reload_same_line"):
+                            core.configure_item("##reload_same_line", show=False)
+                            core.configure_item("##reload_image", show=False)
 
-    def run2(self):
-        global on_render, on_progress
-        logging.warning("run2")
-        try:
-            while 1:
-                if on_render == 1:
-                    if on_progress < 10:
-                        nI = 0.00
-                        for i in range(10):
-                            nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
-                            core.set_value("##ProgressBar", nI)
-                            if nI >= 0.10:
-                                break
-                            sleep(0.002)
-                    if 10 >= on_progress < 50:
-                        nI = 0.10
-                        for i in range(10):
-                            nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
-                            core.set_value("##ProgressBar", nI)
-                            if nI >= 0.50:
-                                break
-                            sleep(0.09)
-                    if 50 >= on_progress < 80:
-                        core.set_value("##ProgressText", "Getting closer !")
-                        nI = 0.50
-                        for i in range(10):
-                            nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
-                            core.set_value("##ProgressBar", nI)
-                            if nI >= 0.80:
-                                break
-                            sleep(0.07)
-                    if 80 >= on_progress < 90:
-                        core.set_value("##ProgressText", "Cmon Faceit !")
-                        nI = 0.80
-                        for i in range(10):
-                            nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
-                            core.set_value("##ProgressBar", nI)
-                            if nI >= 0.90:
-                                break
-                            sleep(0.09)
-                    if 90 >= on_progress < 100:
-                        core.set_value("##ProgressText", "..... !")
-                        nI = 0.90
-                        for i in range(10):
-                            nI = nI + 0.01
-                            core.configure_item("##ProgressBar", overlay=f"{round(nI * 100)}%")
-                            core.set_value("##ProgressBar", nI)
-                            if nI >= 1.0:
-                                on_render = 0
-                                break
-                            sleep(0.8)
-        except threading.ThreadError:
-            self.run2()
+            except:
+                self.run()
 
 
 def long_process():
@@ -144,9 +95,6 @@ def long_process():
     w = Worker()
     d = threading.Thread(name='daemon', target=w.run, daemon=True)
     d.start()
-    w = Worker()
-    d = threading.Thread(name='daemon2', target=w.run2, daemon=True)
-    d.start()
 
 
 """ -------------------------------------------------------------------------------------------------------------------
@@ -154,7 +102,7 @@ def long_process():
 ---------------------------------------------------------------------------------------------------------------------"""
 
 
-def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon):
+def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon, iWin, iLoss):
     """
     Check all Checkboxes and add the active to the Overlay
     """
@@ -166,6 +114,7 @@ def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon):
                                              """
                                              )
     acEloGoal = config_functions.get_elo_goal_from_db()
+    winLoss = config_functions.get_win_loss()
     logging.info("Building Faceit stats")
     core.add_button("\t\tFACEIT STATS\t\t", callback=switch_back_to_menu)
     core.add_same_line(name="##reload_same_line", show=False)
@@ -207,6 +156,14 @@ def add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon):
             core.add_text("\tMatches Won")
             core.add_same_line(xoffset=130)
             core.add_text("matcheswon##", default_value=f"{iMatchesWon}")
+    if int(winLoss[0][0]) == 1:
+        core.add_text("\tWin/Loss per Day")
+        core.add_same_line(xoffset=130)
+        core.add_text("Win/LossperDay##", default_value=f"{iWin} / {iLoss}")
+    if int(winLoss[0][1]) == 1:
+        core.add_text("\tWin/Loss per Week")
+        core.add_same_line(xoffset=130)
+        core.add_text("Win/LossperWeek##", default_value=f"{iWin} / {iLoss}")
 
 
 def add_last_game(acMap, acResult, acScore, acKd, acEloDiff, iKills, iDeath):
@@ -253,19 +210,12 @@ def add_last_game(acMap, acResult, acScore, acKd, acEloDiff, iKills, iDeath):
             core.add_text("death##", default_value=f"{iDeath}")
 
 
-def add_progress_bar():
-    with simple.group("##ProgressGroup"):
-        core.add_spacing(count=20)
-        core.add_text("##ProgressText", default_value="Getting data from Faceit servers")
-        core.add_progress_bar("##ProgressBar", default_value=0.0, overlay="f{nI}", width=180)
-
-
 def switch_back_to_menu():
     logging.info("Switch back to start menu")
     global start_threading
     start_threading = 0
     hwnd = win32gui.GetForegroundWindow()
-    win32gui.MoveWindow(hwnd, 0, 0, 492, 780, True)
+    win32gui.MoveWindow(hwnd, 0, 0, 492, 830, True)
     simple.show_item("##Overlay")
     simple.show_item("##Config")
     faceit_name = config_functions.get_faceit_name_from_db()
@@ -280,7 +230,7 @@ def switch_back_to_menu():
 
 def show_main():
     logging.info("start show_main")
-    global start_threading, on_render, on_progress, build_is_done
+    global start_threading
     heigh, iCountMatch, iCountFaceit = config_functions.check_for_layout()
     name = config_functions.get_faceit_name_from_db()
     with simple.window(f"{name} Elo", height=heigh, width=190,
@@ -293,34 +243,36 @@ def show_main():
         core.set_main_window_size(width=250, height=heigh)
         # Now the magic happens !
         core.set_style_frame_rounding(6.00)
-        add_progress_bar()
-        on_render = 1
+        with simple.group("##Loading"):
+            core.add_spacing(count=20)
+            core.add_text("##LoadingText", default_value="Getting data from Faceit servers")
         """
         Get Data from the API
         """
-        on_progress = 10
+        winLoss = config_functions.get_win_loss()
+        if winLoss[0][0] == "1":
+            mode = 0
+        else:
+            mode = 1
         logging.info("Get data from the API")
         iElo, acEloToday, iRank, \
         acResult, acScore, acKd, \
         acMap, iStreak, iMatches, \
         iMatchesWon, acEloDiff, iKills, \
-        iDeath = faceit_api.get_faceit_data_from_api()
-        on_progress = 50
+        iDeath, iWin, iLoss = faceit_api.get_faceit_data_from_api(mode)
+
         """
         Build the Faceit Header and Data
         """
-        on_progress = 80
         if iCountFaceit > 0:
             logging.info("Build the window for Faceit stats")
-            add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon)
+            add_faceit(iElo, iRank, acEloToday, iStreak, iMatches, iMatchesWon, iWin, iLoss)
         """
         Build the Last Game Header and Data
         """
-        on_progress = 90
         if iCountMatch > 0:
             logging.info("Build the window for Match stats")
             add_last_game(acMap, acResult, acScore, acKd, acEloDiff, iKills, iDeath)
-        on_progress = 100
         """
         ! Add some promotion !
         """
@@ -328,10 +280,9 @@ def show_main():
         core.add_text("powered by Dear PyGui")
         core.add_same_line()
         core.add_image("image##DPG", "resources/6727dpg.ico")
-        on_render = 0
-        build_is_done = 1
-        simple.hide_item("##ProgressGroup")
+        simple.hide_item("##Loading")
         core.enable_docking(dock_space=False)
         hwnd = win32gui.GetForegroundWindow()
         win32gui.SetWindowText(hwnd, f"{name} Elo")
         start_threading = 1
+        long_process()
