@@ -76,6 +76,25 @@ def create_database(database_name: str):
             REFRESH_SIGN          TEXT
             )
         """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS CFG_WIN_LOSS(
+            DAY          TEXT,
+            WEEK         TEXT
+            )
+        """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS CFG_WEB(
+            WEB_ONLY     INT,
+            WEB_APP      INT
+            )
+        """)
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS WEB_PARAMETERS(
+            FONT_SIZE       INT,
+            FONT_FAMILY     TEXT,
+            BG_IMAGE        TEXT
+            )
+        """)
         conn.commit()
         conn.close()
     except sqlite3.Error as err:
